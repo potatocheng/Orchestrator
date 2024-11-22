@@ -1,0 +1,17 @@
+syntax = "proto3";
+package orchestrator;
+
+// 生成的 Go 代码的包名
+option go_package = "./proto";
+
+message TaskMetadata {
+    string id = 1;
+    string type = 2;
+    bytes payload = 3;
+    string queue = 4;
+    int32 retry = 5;
+    int32 retried = 6;
+    int64 completed_at = 7;
+    int64 timeout = 8;
+    int64 deadline = 9;
+}
