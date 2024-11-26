@@ -22,7 +22,7 @@ const (
 	LockPrefix   = "lock:"
 )
 
-type TaskMetadata struct {
+type Task struct {
 	ID          string
 	Type        string
 	Payload     []byte
@@ -35,12 +35,12 @@ type TaskMetadata struct {
 	CompletedAt int64 // CompletedAt is the time when the task was completed
 }
 
-func EncodeMessage(task *TaskMetadata) ([]byte, error) {
+func EncodeMessage(task *Task) ([]byte, error) {
 	if task == nil {
 		return nil, fmt.Errorf("cannot encode nil task")
 	}
 
-	return proto.Marshal(&pb.TaskMetadata{
+	return proto.Marshal(&pb.Task{
 		Id:          task.ID,
 		Type:        task.Type,
 		Payload:     task.Payload,
@@ -54,13 +54,13 @@ func EncodeMessage(task *TaskMetadata) ([]byte, error) {
 	})
 }
 
-func DecodeMessage(msg []byte) (*TaskMetadata, error) {
-	task := &pb.TaskMetadata{}
+func DecodeMessage(msg []byte) (*Task, error) {
+	task := &pb.Task{}
 	if err := proto.Unmarshal(msg, task); err != nil {
 		return nil, err
 	}
 
-	taskmeta := &TaskMetadata{
+	taskmeta := &Task{
 		ID:          task.Id,
 		Type:        task.Type,
 		Payload:     task.Payload,

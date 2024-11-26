@@ -4,7 +4,7 @@ package orchestrator;
 // 生成的 Go 代码的包名
 option go_package = "./proto";
 
-message TaskMetadata {
+message Task {
     string id = 1;
     string type = 2;
     bytes payload = 3;

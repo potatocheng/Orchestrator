@@ -53,7 +53,7 @@ func (r *RDB) executeScriptWithErrorCode(ctx context.Context, script *redis.Scri
 }
 
 // EnqueueTask adds a task to the queue
-func (r *RDB) EnqueueTask(ctx context.Context, taskMeta *model.TaskMetadata) error {
+func (r *RDB) EnqueueTask(ctx context.Context, taskMeta *model.Task) error {
 	taskKey := model.TaskPrefix + taskMeta.ID
 	queueKey := model.QueueuPrefix + taskMeta.Queue
 
@@ -77,7 +77,7 @@ func (r *RDB) EnqueueTask(ctx context.Context, taskMeta *model.TaskMetadata) err
 }
 
 // DequeueTask retrieves a task from the queue
-func (r *RDB) DequeueTask(ctx context.Context, queueName string) (*model.TaskMetadata, error) {
+func (r *RDB) DequeueTask(ctx context.Context, queueName string) (*model.Task, error) {
 	queueKey := model.QueueuPrefix + queueName
 	luaScript, err := os.ReadFile("../script/dequeue.lua")
 	if err != nil {
@@ -96,7 +96,7 @@ func (r *RDB) DequeueTask(ctx context.Context, queueName string) (*model.TaskMet
 	return model.DecodeMessage([]byte(taskEncoded))
 }
 
-func (r *RDB) UpdateTaskStatus(ctx context.Context, task *model.TaskMetadata, status model.Status) error {
+func (r *RDB) UpdateTaskStatus(ctx context.Context, task *model.Task, status model.Status) error {
 	if status == model.StatusFailed && task.Retried < task.Retry {
 		task.Retried++
 		task.Status = model.StatusPending
