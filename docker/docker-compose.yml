@@ -7,4 +7,4 @@ services:
     volumes:
       - ../persistent/redis-data:/data
       - ../config/redis.conf:/usr/local/etc/redis/redis.conf
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    command: ["/bin/sh", "-c", "chmod 777 /run && redis-server /usr/local/etc/redis/redis.conf"]

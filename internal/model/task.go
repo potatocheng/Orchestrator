@@ -2,37 +2,42 @@ package model
 
 import (
 	"fmt"
+	"time"
 
 	pb "github.com/potatocheng/Orchestrator/internal/proto"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type Status uint32
-
 const (
-	StatusPending Status = iota
+	StatusPending uint32 = iota
 	StatusProcessing
 	StatusCompleted
 	StatusFailed
 )
 
 const (
-	TaskPrefix   = "task:"
-	QueueuPrefix = "queue"
-	LockPrefix   = "lock:"
+	TaskPrefix  = "task:"
+	QueuePrefix = "queue"
+	LockPrefix  = "lock:"
 )
 
 type Task struct {
 	ID          string
-	Type        string
 	Payload     []byte
-	Queue       string // Queue is the name of the queue where the task is stored
-	Status      Status
-	Retry       int32 // Retry is the number of times the task can be retried
-	Retried     int32 // Retried is the number of times the task has been retried
+	Status      uint32
+	RetryCount  uint32
+	MaxRetries  uint32
+	NextRunTime time.Time
 	Timeout     int64
-	Deadline    int64
-	CompletedAt int64 // CompletedAt is the time when the task was completed
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Handler     string
+}
+
+func Time2ProtoTimestamp(t time.Time) *timestamppb.Timestamp {
+	return &timestamppb.Timestamp{Seconds: t.Unix(), Nanos: int32(t.Nanosecond())}
+
 }
 
 func EncodeMessage(task *Task) ([]byte, error) {
@@ -42,15 +47,15 @@ func EncodeMessage(task *Task) ([]byte, error) {
 
 	return proto.Marshal(&pb.Task{
 		Id:          task.ID,
-		Type:        task.Type,
 		Payload:     task.Payload,
-		Queue:       task.Queue,
-		Retry:       task.Retry,
-		Retried:     task.Retried,
-		CompletedAt: task.CompletedAt,
-		Timeout:     task.Timeout,
-		Deadline:    task.Deadline,
 		Status:      uint32(task.Status),
+		Retrycount:  task.RetryCount,
+		Maxretries:  task.MaxRetries,
+		Nextruntime: Time2ProtoTimestamp(task.NextRunTime),
+		Timeout:     task.Timeout,
+		Createdat:   Time2ProtoTimestamp(task.CreatedAt),
+		Updatedat:   Time2ProtoTimestamp(task.UpdatedAt),
+		Handler:     task.Handler,
 	})
 }
 
@@ -62,15 +67,15 @@ func DecodeMessage(msg []byte) (*Task, error) {
 
 	taskmeta := &Task{
 		ID:          task.Id,
-		Type:        task.Type,
 		Payload:     task.Payload,
-		Queue:       task.Queue,
-		Status:      Status(task.Status),
-		Retry:       task.Retry,
-		Retried:     task.Retried,
+		Status:      task.Status,
+		RetryCount:  task.Retrycount,
+		MaxRetries:  task.Maxretries,
+		NextRunTime: task.Nextruntime.AsTime(),
 		Timeout:     task.Timeout,
-		Deadline:    task.Deadline,
-		CompletedAt: task.CompletedAt,
+		CreatedAt:   task.Createdat.AsTime(),
+		UpdatedAt:   task.Updatedat.AsTime(),
+		Handler:     task.Handler,
 	}
 	return taskmeta, nil
 }

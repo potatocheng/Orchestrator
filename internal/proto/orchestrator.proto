@@ -4,15 +4,18 @@ package orchestrator;
 // 生成的 Go 代码的包名
 option go_package = "./proto";
 
+import "google/protobuf/timestamp.proto";
+
 message Task {
     string id = 1;
-    string type = 2;
+    string name = 2;
     bytes payload = 3;
-    string queue = 4;
-    int32 retry = 5;
-    int32 retried = 6;
-    int64 completed_at = 7;
+    uint32 status = 4;
+    uint32 retrycount = 5;
+    uint32 maxretries = 6;
+    google.protobuf.Timestamp nextruntime = 7;
     int64 timeout = 8;
-    int64 deadline = 9;
-    uint32 status = 10;
+    google.protobuf.Timestamp createdat = 9;
+    google.protobuf.Timestamp updatedat = 10;
+    string handler = 11;
 }

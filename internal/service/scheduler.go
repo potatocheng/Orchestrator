@@ -2,7 +2,12 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/potatocheng/Orchestrator/internal/model"
@@ -11,61 +16,94 @@ import (
 
 type Scheduler struct {
 	storage    *storage.RDB
-	workerPool int
+	workerPool int32
 	quit       chan struct{}
+	wg         sync.WaitGroup
 }
 
-func NewScheduler(rdb *storage.RDB, workerPool int) *Scheduler {
+func NewScheduler(storage *storage.RDB, workPool int32) *Scheduler {
 	return &Scheduler{
-		storage:    rdb,
-		workerPool: workerPool,
+		storage:    storage,
+		workerPool: workPool,
 		quit:       make(chan struct{}),
 	}
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
-	for i := 0; i < s.workerPool; i++ {
+	for i := int32(0); i < s.workerPool; i++ {
+		s.wg.Add(1)
 		go s.worker(ctx, i)
 	}
+	log.Printf("Scheduler started with %d workers", s.workerPool)
 }
 
-func (s *Scheduler) Stop() {
+func (s *Scheduler) Stop(ctx context.Context) {
 	close(s.quit)
+	s.wg.Wait()
+	log.Println("Scheduler stopped")
 }
 
-func (s *Scheduler) worker(ctx context.Context, id int) {
+func (s *Scheduler) worker(ctx context.Context, id int32) {
+	defer s.wg.Done()
 	for {
 		select {
 		case <-s.quit:
+			log.Printf("Worker %d received stop signal", id)
 			return
 		default:
-			task, err := s.storage.DequeueTask(ctx, "default_queue")
+			// 从redis中取出任务
+			task, err := s.storage.DequeueTask(ctx, model.QueuePrefix)
 			if err != nil {
-				log.Printf("Worker %d, failed to dequeue task: %v", id, err)
-				time.Sleep(1 * time.Second)
+				log.Printf("Worker %d failed to dequeue task: %v", id, err)
 				continue
 			}
-			if task != nil {
-				s.executeTask(ctx, task)
+			if task == nil {
+				// 如果队列为空，短暂休息
+				time.Sleep(500 * time.Millisecond)
+			} else {
+				if err := s.executeTask(ctx, task); err != nil {
+					log.Printf("Worker %d failed to execute task %s: %v", id, task.ID, err)
+				}
 			}
 		}
 	}
 }
 
-func (s *Scheduler) executeTask(ctx context.Context, task *model.Task) {
-	log.Printf("Executing task: %s", task.ID)
-	// 更新任务状态为处理中
-	err := s.storage.UpdateTaskStatus(ctx, task, model.StatusProcessing)
+func (s *Scheduler) executeTask(ctx context.Context, task *model.Task) error {
+	log.Printf("Executing task %s", task.ID)
+	err := s.storage.UpdateTaskStatus(ctx, model.QueuePrefix, task, model.StatusProcessing)
 	if err != nil {
-		log.Printf("Failed to update task status to processing: %v", err)
-		return
+		return err
 	}
 
-	// 任务执行
+	taskCtx, cancel := context.WithTimeout(ctx, time.Duration(task.Timeout)*time.Second)
+	defer cancel()
 
-	// 根据执行结果更新任务状态
-	err = s.storage.UpdateTaskStatus(ctx, task, model.StatusCompleted)
-	if err != nil {
-		log.Printf("Failed to update task status to completed: %v", err)
+	handler, exists := TaskRegister.GetTaskHandler(task.Handler)
+	if !exists {
+		return fmt.Errorf("task handler %s not found", task.Handler)
 	}
+
+	err = handler(taskCtx, task)
+	if err != nil {
+		log.Printf("Task %s failed: %v", task.ID, err)
+		task.RetryCount++
+		if task.RetryCount > task.MaxRetries {
+			return s.storage.UpdateTaskStatus(ctx, model.QueuePrefix, task, model.StatusFailed)
+		} else {
+			return s.storage.EnqueueTask(ctx, model.QueuePrefix, task)
+		}
+	}
+
+	return s.storage.UpdateTaskStatus(ctx, model.QueuePrefix, task, model.StatusCompleted)
+}
+
+func (s *Scheduler) Run(ctx context.Context) {
+	s.Start(ctx)
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	<-sigChan
+	s.Stop(ctx)
 }
