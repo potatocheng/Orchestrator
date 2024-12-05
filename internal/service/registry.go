@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/potatocheng/Orchestrator/internal/model"
+	"github.com/potatocheng/Orchestrator/internal/taskQ"
 )
 
 // TaskRegister 全局任务handler注册器
 var TaskRegister *TaskRegistry = NewTaskRegistry()
 
-type TaskHandlerFunc func(ctx context.Context, task *model.Task) error
+type TaskHandlerFunc func(ctx context.Context, task *taskQ.TaskMessage) error
 
 type TaskRegistry struct {
 	taskHandlers map[string]TaskHandlerFunc
